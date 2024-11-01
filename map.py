@@ -1,6 +1,7 @@
 import spade
 import tkinter as tk
 import random
+from PIL import ImageGrab
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from spade.template import Template
@@ -62,7 +63,7 @@ class Map:
         for i in range(20):
             for j in range(20):
                 key = (i, j)
-                value = [0 for _ in range(4)]
+                value = [0 for _ in range(3)]
                 self.informations[key] = value
         #Dicionário: 1º valor - nº de mortos, 2º valor - nº de feridos, 3º valor - nº de mortos resgatados, 4º valor - nº de feridos resgatados
         self.affected_services = [[0 for _ in range(50)] for _ in range(50)]
@@ -77,12 +78,10 @@ class Map:
         self.legend_intensity_tsunami = [0] * 30
         self.n_mortos = 0
         self.n_feridos = 0
-        self.n_mortos_resgatados = 0
-        self.n_feridos_resgatados = 0
-        self.dados = [0] * 7
+        self.n_civis_abrigo = 0
+        self.dados = [0] * 6
         self.descricoes = ["Nº de mortos: ", "Nº de feridos: ", "Nº Responders (bases) destruídos: ",
-                      "Nº de Shelters destruídos: ", "Nº de Supply (bases) destruídas: ", "Nº de mortos resgatados: ",
-                      "Nº de feridos resgatados: "]
+                      "Nº de Shelters destruídos: ", "Nº de Supply (bases) destruídas: ", "Nº de civis precisam abrigo: "]
         self.affected_points = [[0 for _ in range (20)] for _ in range (20)]
 
         self.label_valor_mortos = None
@@ -107,20 +106,31 @@ class Map:
         self.legendas2()
         self.draw_road()
         self.draw_points()
-        self.update_resgatados()
+        # Exibir uma mensagem (ou imagem estática)
+        save_button = tk.Button(self.root, command=lambda: self.save_and_close(self.root, 1))
+        save_button.grid(row=1, column=0, padx=10, pady=10)
+        save_button2 = tk.Button(self.root2, command=lambda: self.save_and_close(self.root2, 2))
+        save_button2.grid(row=1, column=0, padx=10, pady=10)
         self.root.mainloop()
 
-    def n_mortos (self, x, y):
+    def save_and_close(self, root, i):
+        # Captura a tela do root
+        x = root.winfo_rootx()
+        y = root.winfo_rooty()
+        width = root.winfo_width()
+        height = root.winfo_height()
+        ImageGrab.grab(bbox=(x, y, x + width, y + height)).save(f"image{i}.png")
+        # Fecha o root
+        root.destroy()
+
+    def get_n_mortos (self, x, y):
         return self.informations[(x, y)][0]
 
-    def n_feridos (self, x, y):
-        return self.informations[(x, y)][1]
-
-    def n_mortos_resgatados (self, x, y):
+    def get_n_civis_abrigo (self, x, y):
         return self.informations[(x, y)][2]
 
-    def n_feridos_resgatados (self, x, y):
-        return self.informations[(x, y)][3]
+    def get_n_feridos (self, x, y):
+        return self.informations[(x, y)][1]
 
     def affected_point (self, position):
         if position in self.affected_points:
@@ -137,20 +147,7 @@ class Map:
     def draw_road(self):
         for line in self.road_points:
             x1, y1, x2, y2 = line
-            if (x1, y1) in self.affected_points:
-                if (x2, y2) in self.affected_points:
-                    cortada = random.choice([True, False])
-                    if cortada:
-                        self.canvas.create_line(x1 * self.CELL_SIZE, y1 * self.CELL_SIZE, x2 * self.CELL_SIZE, y2 * self.CELL_SIZE, fill='yellow',
-                                       width=5)
-                    else:
-                        self.canvas.create_line(x1 * self.CELL_SIZE, y1 * self.CELL_SIZE, x2 * self.CELL_SIZE, y2 * self.CELL_SIZE, fill='black',
-                                           width=5)
-                else:
-                    self.canvas.create_line(x1 * self.CELL_SIZE, y1 * self.CELL_SIZE, x2 * self.CELL_SIZE, y2 * self.CELL_SIZE, fill='black',
-                                       width=5)
-            else:
-                self.canvas.create_line(x1 * self.CELL_SIZE, y1 * self.CELL_SIZE, x2 * self.CELL_SIZE, y2 * self.CELL_SIZE, fill='black', width=5)
+            self.canvas.create_line(x1 * self.CELL_SIZE, y1 * self.CELL_SIZE, x2 * self.CELL_SIZE, y2 * self.CELL_SIZE, fill='black', width=5)
 
     def get_color(self, population):
         if population < 25:
@@ -174,7 +171,7 @@ class Map:
     def terramoto (self):
         epicenter_x = random.randint(3, 18)
         epicenter_y = random.randint(3, 18)
-        gravity = random.randint(3, 7)
+        gravity = 2
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
                 distance = max(abs(epicenter_x - i), abs(epicenter_y - j))
@@ -186,12 +183,15 @@ class Map:
                         self.canvas.create_rectangle(i * self.CELL_SIZE, j * self.CELL_SIZE,
                                             (i + 1) * self.CELL_SIZE, (j + 1) * self.CELL_SIZE,
                                             fill=color, outline='')
-                        n_mortos_c = int(self.population_data [i][j] * random.randint (20, 50) * 0.01)
-                        n_feridos_c = int(self.population_data[i][j] * random.randint(1, 10) * 0.01)
+                        n_mortos_c = int(self.population_data [i][j] * random.randint (1, 10) * 0.01)
+                        n_feridos_c = int(self.population_data[i][j] * random.randint(20, 50) * 0.01)
+                        n_civis_abrigo_c = int(self.population_data[i][j] * random.randint(10, 30) * 0.01)
                         self.n_mortos += n_mortos_c
                         self.n_feridos += n_feridos_c
+                        self.n_civis_abrigo += n_civis_abrigo_c
                         self.informations [(i, j)][0] = n_mortos_c
                         self.informations[(i, j)][1] = n_feridos_c
+                        self.informations[(i, j)][2] = n_civis_abrigo_c
                         if any((i, j) in self.points for i, j in self.points.keys()):
                             self.affected_services.append([i, j])
                         self.affected_points.append([i, j])
@@ -230,7 +230,7 @@ class Map:
         return min_distance
 
     def tsunami (self):
-        distance_tsunami = random.randint(2, 4)
+        distance_tsunami = 2
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
                 distance_sea = self.calculate_distance_sea (i, j)
@@ -245,12 +245,15 @@ class Map:
                         self.canvas.create_rectangle(i * self.CELL_SIZE, j * self.CELL_SIZE,
                                             (i + 1) * self.CELL_SIZE, (j + 1) * self.CELL_SIZE,
                                             fill=color, outline='')
-                        n_mortos_c = int(self.population_data[i][j] * random.randint(20, 50) * 0.01)
-                        n_feridos_c = int(self.population_data[i][j] * random.randint(1, 10) * 0.01)
+                        n_mortos_c = int(self.population_data[i][j] * random.randint(1, 10) * 0.01)
+                        n_feridos_c = int(self.population_data[i][j] * random.randint(20, 50) * 0.01)
+                        n_civis_abrigo_c = int(self.population_data[i][j] * random.randint(10, 30) * 0.01)
                         self.n_mortos += n_mortos_c
                         self.n_feridos += n_feridos_c
+                        self.n_civis_abrigo += n_civis_abrigo_c
                         self.informations[(i, j)][0] = n_mortos_c
                         self.informations[(i, j)][1] = n_feridos_c
+                        self.informations[(i, j)][2] = n_civis_abrigo_c
                         if any((i, j) in self.points for i, j in self.points.keys()):
                             self.affected_services.append([i, j])
                         self.affected_points.append([i, j])
@@ -273,8 +276,8 @@ class Map:
     def terramoto_tsunami (self):
         epicenter_x = random.randint(3, 18)
         epicenter_y = random.randint(3, 18)
-        gravity = random.randint(3, 7)
-        distance_tsunami = random.randint(2, 4)
+        gravity = 2
+        distance_tsunami = 2
         for i in range(self.GRID_SIZE):
             for j in range(self.GRID_SIZE):
                 distance = max(abs(epicenter_x - i), abs(epicenter_y - j))
@@ -290,11 +293,14 @@ class Map:
                                             (i + 1) * self.CELL_SIZE, (j + 1) * self.CELL_SIZE,
                                             fill=color, outline='')
                         n_mortos_c = int(self.population_data[i][j] * random.randint(10, 20) * 0.01)
-                        n_feridos_c = int(self.population_data[i][j] * random.randint(35, 70) * 0.01)
+                        n_feridos_c = int(self.population_data[i][j] * random.randint(35, 50) * 0.01)
+                        n_civis_abrigo_c = int(self.population_data[i][j] * random.randint(10, 30) * 0.01)
                         self.n_mortos += n_mortos_c
                         self.n_feridos += n_feridos_c
+                        self.n_civis_abrigo += n_civis_abrigo_c
                         self.informations[(i, j)][0] = n_mortos_c
                         self.informations[(i, j)][1] = n_feridos_c
+                        self.informations[(i, j)][2] = n_civis_abrigo_c
                         if any((i, j) in self.points for i, j in self.points.keys()):
                             self.affected_services.append([i, j])
                         self.affected_points.append([i, j])
@@ -305,10 +311,13 @@ class Map:
                                             fill=color, outline='')
                         n_mortos_c = int(self.population_data[i][j] * random.randint(1, 10) * 0.01)
                         n_feridos_c = int(self.population_data[i][j] * random.randint(20, 50) * 0.01)
+                        n_civis_abrigo_c = int(self.population_data[i][j] * random.randint(10, 30) * 0.01)
                         self.n_mortos += n_mortos_c
                         self.n_feridos += n_feridos_c
+                        self.n_civis_abrigo += n_civis_abrigo_c
                         self.informations[(i, j)][0] = n_mortos_c
                         self.informations[(i, j)][1] = n_feridos_c
+                        self.informations[(i, j)][2] = n_civis_abrigo_c
                         if any((i, j) in self.points for i, j in self.points.keys()):
                             self.affected_services.append([i, j])
                         self.affected_points.append([i, j])
@@ -317,12 +326,15 @@ class Map:
                         self.canvas.create_rectangle(i * self.CELL_SIZE, j * self.CELL_SIZE,
                                             (i + 1) * self.CELL_SIZE, (j + 1) * self.CELL_SIZE,
                                             fill=color, outline='')
-                        n_mortos_c = int(self.population_data[i][j] * random.randint(20, 50) * 0.01)
-                        n_feridos_c = int(self.population_data[i][j] * random.randint(1, 10) * 0.01)
+                        n_mortos_c = int(self.population_data[i][j] * random.randint(1, 10) * 0.01)
+                        n_feridos_c = int(self.population_data[i][j] * random.randint(20, 50) * 0.01)
+                        n_civis_abrigo_c = int(self.population_data[i][j] * random.randint(10, 30) * 0.01)
                         self.n_mortos += n_mortos_c
                         self.n_feridos += n_feridos_c
+                        self.n_civis_abrigo += n_civis_abrigo_c
                         self.informations[(i, j)][0] = n_mortos_c
                         self.informations[(i, j)][1] = n_feridos_c
+                        self.informations[(i, j)][2] = n_civis_abrigo_c
                         if any((i, j) in self.points for i, j in self.points.keys()):
                             self.affected_services.append([i,j])
                         self.affected_points.append([i, j])
@@ -359,7 +371,6 @@ class Map:
         tk.Label(self.legend_frame, text="Mar", bg="light blue", fg="black", width=20).pack(anchor=tk.W)
         tk.Label(self.legend_frame, text="Estradas:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
         tk.Label(self.legend_frame, text="Estrada", bg="black", fg="white", width=20).pack(anchor=tk.W)
-        tk.Label(self.legend_frame, text="Estrada cortada", bg="yellow", width=20).pack(anchor=tk.W)
         colors = ('red', 'magenta', 'black')
         color_legend = ("Responder Agents", "Shelter Agents", "Supply Vehicles Agents")
         tk.Label(self.legend_frame, text="Serviços:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
@@ -393,8 +404,7 @@ class Map:
         self.dados [2] = n_responder_agents
         self.dados [3] = n_shelter_agents
         self.dados [4] = n_supply_agents
-        self.dados [5] = self.n_mortos_resgatados
-        self.dados [6] = self.n_feridos_resgatados
+        self.dados [5] = self.n_civis_abrigo
         for i in range(len(self.descricoes)):
             descricao = self.descricoes[i]
             valor = self.dados[i]
@@ -402,20 +412,6 @@ class Map:
             label_descricao.grid(row=i, column=0, padx=10, pady=5, sticky="w")
             label_valor = tk.Label(self.root2, text=valor)
             label_valor.grid(row=i, column=1, padx=10, pady=5, sticky="w")
-            if descricao == "Nº de mortos resgatados: ":
-                self.label_valor_mortos = label_valor
-            elif descricao == "Nº de feridos resgatados: ":
-                self.label_valor_feridos = label_valor
-
-    def update_resgatados(self):
-        if self.n_mortos_resgatados != self.n_mortos:
-            self.n_mortos_resgatados += 1
-            self.label_valor_mortos.config(text=self.n_mortos_resgatados)
-        if self.n_feridos_resgatados != self.n_feridos:
-            self.n_feridos_resgatados += 1
-            self.label_valor_feridos.config(text=self.n_feridos_resgatados)
-        self.root2.after(1000, self.update_resgatados)
-
 
 
 

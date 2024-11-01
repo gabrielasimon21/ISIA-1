@@ -1,42 +1,38 @@
+import threading
 import asyncio
-import logging
+import tkinter as tk
 from civil_agent import Civil
 from ShelterAgent import ShelterAgent
 from map import Map
-
-logging.basicConfig(level=logging.DEBUG)
+from PIL import Image
 
 async def main():
-    try:
-        map = Map()
-        map.create_gui()
-
-        civil_agents = {}
-        k = 1
-        for i in range(20):
-            for j in range(20):
-                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], True, False, False)
-                n_civis_criados = 1
+    map = Map()
+    map.create_gui()
+    mapa = Image.open('image1.png')
+    mapa.show()
+    leg = Image.open('image2.png')
+    leg.show()
+    affected_points = map.affected_points
+    civil_agents = {}
+    k = 0
+    for i in range(20):
+        for j in range(20):
+            if [i, j] in affected_points:
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], True, False, False, False)
                 k += 1
-                for n in range(map.informations[(i, j)][0]):
-                    civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], False, True, False)
-                    n_civis_criados += 1
-                    k += 1
-                for n in range(map.informations[(i, j)][1]):
-                    civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], False, False, True)
-                    n_civis_criados += 1
-                    k += 1
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], False, True, False, False)
+                k += 1
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], False, False, True, False)
+                k += 1
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], False, False, False, True)
+                k += 1
 
-        for civil_agent in civil_agents.values():
-            await civil_agent.start(auto_register=True)
-            if civil_agent.leader:
-                print("Sender started")
+    shelter_agent = ShelterAgent("shelter1@localhost", "password", [0, 0], 10, map)
+    await shelter_agent.start(auto_register=True)
+    for civil_agent in civil_agents.values():
+        await civil_agent.start(auto_register=True)
 
-        shelter_agent = ShelterAgent("shelter1@localhost", "password", [0, 0], 10, map)
-        await shelter_agent.start(auto_register=True)
-        print("Receiver started")
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
