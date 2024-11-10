@@ -4,6 +4,7 @@ from spade.behaviour import CyclicBehaviour
 from spade.message import Message
 from spade.template import Template
 import ast
+import random
 
 
 class ResponderAgent(Agent):
@@ -11,7 +12,6 @@ class ResponderAgent(Agent):
         super().__init__(jid, password)
         self.number = number
         self.current_location = current_location
-        self.busy = False
         self.environment = environment
 
     async def setup(self):
@@ -53,13 +53,12 @@ class ResponderRun(CyclicBehaviour):
             msg.set_metadata("language", "OWL-S")
             msg.set_metadata("value", position)
             msg.set_metadata("value2", informations)
-            msg.body = f"CONTRACT NET: O agente escolhido para a célula {position} foi o Responder Agent: {best_agent} e encontra-se à distância {max}km"
-            print(msg.body)
+            msg.body = f"ALOCAÇÃO: O agente escolhido para a célula {position} foi o Responder Agent: {best_agent} e encontra-se à distância {max}km"
             try:
                 await self.send(msg)
-            except Exception as e:
+                await self.confirm_civil(civil, best_agent, max)
+            except Exception:
                 await self.desconfirm_civil(civil, position)
-                exception = True
             for agent in refusal_agents:
                 if agent != best_agent:
                     agent = str(agent)
@@ -70,20 +69,16 @@ class ResponderRun(CyclicBehaviour):
                     msg.body = f"O agente não foi escolhido"
                     try:
                         await self.send(msg)
-                    except Exception as e:
+                    except Exception:
                         pass
-            if not exception:
-                informations = ast.literal_eval(informations)
-                self.map.dados[6] += informations[0]
-                self.map.dados[7] += informations[1]
-                await self.confirm_civil(civil, best_agent, max)
+
 
     async def confirm_civil(self, civil, agent, dist):
         msg = Message(to=civil)
         msg.set_metadata("performative", "confirm")
         msg.set_metadata("ontology", "myOntology")
         msg.set_metadata("language", "OWL-S")
-        msg.body = f"O agente escolhido para a sua célula foi o Responder Agent: {agent} e encontra-se à distância {dist}km"
+        msg.body = f"ALOCAÇÃO: Foi alocado o agente {agent} à sua célula"
         try:
             await self.send(msg)
         except Exception:
@@ -94,12 +89,11 @@ class ResponderRun(CyclicBehaviour):
         msg.set_metadata("performative", "desconfirm")
         msg.set_metadata("ontology", "myOntology")
         msg.set_metadata("language", "OWL-S")
-        msg.body = f"Neste momento não é possível atribuir um agente à sua célula"
+        msg.body = f"NEGAÇÂO: Não existem agentes disponíveis no momento para a célula {position}"
         try:
             await self.send(msg)
-        except Exception as e:
+        except Exception:
             pass
-        print(f"NEGAÇÂO: Não existem agentes disponíveis no momento para a célula {position}")
 
 
     async def send_reject_message(self, agent):
@@ -110,9 +104,8 @@ class ResponderRun(CyclicBehaviour):
         msg.body = f"Request rejected: Agent busy"
         try:
             await self.send(msg)
-        except Exception as e:
+        except Exception:
             pass
-
 
     def get_distance(self, position):
         x = position[0]
@@ -131,20 +124,12 @@ class ResponderRun(CyclicBehaviour):
         msg.body = f"Proposta com valor: {proposal_value}"
         try:
             await self.send(msg)
-        except Exception as e:
+        except Exception:
             pass
 
     def get_rescue_time(self, information):
         time = information[0] * 0.1 + information [1] * 0.1 #Resgate de 10 feridos e 10 mortos p/h
         return time
-
-    async def respond_time(self, position, information):
-        time = self.get_distance(position) * 0.05 #20 km/h
-        await asyncio.sleep(time)
-        self.agent.current_location = position
-        time = self.get_rescue_time(information)
-        await asyncio.sleep(time)
-        self.agent_busy = False
 
 
     async def run(self):
@@ -154,50 +139,46 @@ class ResponderRun(CyclicBehaviour):
                 sender = str(msg.sender)
                 position = msg.get_metadata("value")
                 if msg.get_metadata("performative") == "inform":
-                    print(f"INFORMAÇÃO: {msg.body}")
+                    print(msg.body)
                     information = msg.get_metadata("value2")
                     self.position = ast.literal_eval(position)
                     self.information = ast.literal_eval(information)
-                    if not self.agent.busy:
-                        self.agent.busy = True
-                        distance = self.get_distance(self.position)
-                        await self.confirm_civil(sender, self.agent, distance)
-                        print(f"CONTACTO DIRETO: O agente escolhido para a célula {self.position} foi o Responder Agent: {self.agent.jid}, e encontra-se à distância {distance}km")
-                        self.map.dados[6] += self.information[0]
-                        self.map.dados[7] += self.information[1]
-                    else: #CONTRACT NET
-                        for i in range(20):
-                            if i != self.agent.number:
-                                agent = f"responder{i}@localhost"
-                                msg = Message(to=agent)
-                                msg.set_metadata("performative", "request")
-                                msg.set_metadata("ontology", "myOntology")
-                                msg.set_metadata("language", "OWL-S")
-                                msg.set_metadata("value", position)
-                                msg.body = f"Está disponível? Quanto tempo demora?"
-                                try:
-                                    await self.send(msg)
-                                except Exception as e:
-                                    pass
-                        propose_messages = []
-                        for i in range(19):
-                            msg = await self.receive(timeout=1)
-                            if msg and msg.get_metadata("performative") == "propose":
-                                propose_messages.append(msg)
-                        await self.respond_proposals(sender, propose_messages, position, information)
+                    #CONTRACT NET
+                    for i in range(20):
+                        if i != self.agent.number:
+                            agent = f"responder{i}@localhost"
+                            msg = Message(to=agent)
+                            msg.set_metadata("performative", "request")
+                            msg.set_metadata("ontology", "myOntology")
+                            msg.set_metadata("language", "OWL-S")
+                            msg.set_metadata("value", position)
+                            msg.body = f"Está disponível? Quanto tempo demora?"
+                            try:
+                                await self.send(msg)
+                            except Exception:
+                                pass
+                    propose_messages = []
+                    for i in range(19):
+                        msg = await self.receive(timeout=1)
+                        if msg and msg.get_metadata("performative") == "propose":
+                            propose_messages.append(msg)
+                    await self.respond_proposals(sender, propose_messages, position, information)
                 elif msg.get_metadata("performative") == "request":
                     position = ast.literal_eval(position)
-                    if self.agent.busy:
-                        await self.send_reject_message(sender)
-                    else:
-                        await self.send_proposal_message(sender, position)
+                    await self.send_proposal_message(sender, position)
                 elif msg.get_metadata("performative") == "confirm":
-                    self.agent.busy = True
+                    print(msg.body)
                     information = msg.get_metadata("value2")
                     self.position = ast.literal_eval(position)
                     self.information = ast.literal_eval(information)
-            if self.agent.busy:
-                await self.respond_time(self.position, self.information)
+                    time = self.get_distance(self.position) * 0.05  # 20 km/h
+                    delay = random.randint(0, 3) * 0.05 #Estrada cortada
+                    await asyncio.sleep(time + delay)
+                    self.agent.current_location = self.position
+                    time = self.get_rescue_time(self.information)
+                    await asyncio.sleep(time)
+                    self.map.dados[6] += self.information[0]
+                    self.map.dados[7] += self.information[1]
 
 
 

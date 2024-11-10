@@ -9,7 +9,7 @@ import tkinter as tk
 def update_gui(i, map):
     root = tk.Tk()
     frame = tk.Frame(root)
-    root.title(f"Dados de destruição após {i} horas: ")
+    root.title(f"Dados de salvamento após {i} horas: ")
     frame.grid(column=0, row=0, padx=10, pady=10)
     legendas(map, root)
     root.mainloop()
@@ -31,18 +31,13 @@ def legendas (map, root):
         label_valor = tk.Label(root, text=valor)
         label_valor.grid(row=i, column=1, padx=10, pady=5, sticky="w")
 
-async def update_map(map, i):
-    while True:
-        i += 1
-        await asyncio.sleep(25)
-        update_gui(i*24, map)
 
 async def stop_agents(civil_agents, responder_agents, map):
     for agent in civil_agents.values():
         await agent.stop()
     for agent in responder_agents.values():
         await agent.stop()
-    update_gui(72, map)
+    update_gui(48, map)
     sys.exit(0)
 
 civil_agents = {}
@@ -53,11 +48,6 @@ async def main():
     map.create_gui()
     affected_points = map.affected_points
     k = 0
-    for i in range(20):
-        for j in range(20):
-            if [i, j] in affected_points:
-                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], True, False, False, False)
-                k += 1
 
     responder_points = map.get_responder_points()
     i = 1
@@ -75,15 +65,28 @@ async def main():
                 i += 1
     #shelter_agent = ShelterAgent("shelter1@localhost", "password", [0, 0], 10, map)
     #await shelter_agent.start(auto_register=True)
+    responder_inic_c = []
+    responder_inic = []
     for j in range (11, 21):
-        await responder_agents[j].start(auto_register=True)
+        if responder_agents[j].current_location not in affected_points:
+            await responder_agents[j].start(auto_register=True)
+            responder_inic_c.append(j)
     for j in range(1, 11):
-        await responder_agents[j].start(auto_register=True)
+        if responder_agents[j].current_location not in affected_points:
+            await responder_agents[j].start(auto_register=True)
+            responder_inic.append(j)
+
+    for i in range(20):
+        for j in range(20):
+            if [i, j] in affected_points:
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], True, False, False, False, responder_inic_c)
+                k += 1
+
     for civil_agent in civil_agents.values():
         await civil_agent.start(auto_register=True)
 
-    asyncio.ensure_future(update_map(map, 0))
-    await asyncio.sleep(72)
+    #asyncio.ensure_future(update_map(map, 0))
+    await asyncio.sleep(50)
     await stop_agents(civil_agents, responder_agents, map)
 
 
