@@ -1,13 +1,5 @@
-import spade
 import tkinter as tk
 import random
-from PIL import ImageGrab
-from spade.agent import Agent
-from spade.behaviour import CyclicBehaviour
-from spade.template import Template
-from spade.message import Message
-import asyncio
-
 
 class Map:
     def __init__(self):
@@ -31,25 +23,26 @@ class Map:
                 self.informations[key] = value
         #Dicionário: 1º valor - nº de mortos, 2º valor - nº de feridos, 3º valor - nº de mortos resgatados, 4º valor - nº de feridos resgatados
         self.affected_services = [[0 for _ in range(50)] for _ in range(50)]
-        self.root = tk.Tk()
-        self.root2 = tk.Tk()
-        self.frame = tk.Frame(self.root)
-        self.canvas = tk.Canvas(self.frame, width=900, height=600)
-        self.legend_frame = tk.Frame(self.root)
+        self.root = None
+        self.root2 = None
+        self.frame = None
+        self.canvas = None
+        self.legend_frame = None
         self.legend_colors_earthquake = [0] * 30
         self.legend_intensity_earthquake = [0] * 30
         self.legend_colors_tsunami = [0] * 30
         self.legend_intensity_tsunami = [0] * 30
         self.n_mortos = 0
         self.n_feridos = 0
+        self.n_mortos_resg = 0
+        self.n_feridos_resg = 0
         self.n_civis_abrigo = 0
-        self.dados = [0] * 6
+        self.dados = [0] * 9
         self.descricoes = ["Nº de mortos: ", "Nº de feridos: ", "Nº Responders (bases) destruídos: ",
-                      "Nº de Shelters destruídos: ", "Nº de Supply (bases) destruídas: ", "Nº de civis precisam abrigo: "]
+                      "Nº de Shelters destruídos: ", "Nº de Supply (bases) destruídas: ", "Nº de civis precisam abrigo: ", "Nº de mortos resgatados: ", "Nº de feridos resgatados: ", "Nº de civis acolhidos: "]
         self.affected_points = [[0 for _ in range (20)] for _ in range (20)]
+        self.ite = 0
 
-        self.label_valor_mortos = None
-        self.label_valor_feridos = None
 
         for (x, y), color in self.points.items():
             w = (x, y)
@@ -65,8 +58,13 @@ class Map:
 
     # Função que inicia a interface gráfica
     def create_gui(self):
+        self.root = tk.Tk()
+        self.root2 = tk.Tk()
+        self.frame = tk.Frame(self.root)
+        self.canvas = tk.Canvas(self.frame, width=900, height=600)
+        self.legend_frame = tk.Frame(self.root)
         self.root.title(f"Mapa Cidade: {self.fenomeno}")
-        self.root2.title("Dados de destruição")
+        self.root2.title(f"Dados de destruição: ")
         self.frame.grid(column=0, row=0, padx=10, pady=10)
         self.canvas.grid(row=0, column=0)
         self.legendas()
@@ -79,22 +77,7 @@ class Map:
         self.legendas2()
         self.draw_road()
         self.draw_points()
-        # Exibir uma mensagem (ou imagem estática)
-        save_button = tk.Button(self.root, command=lambda: self.save_and_close(self.root, 1))
-        save_button.grid(row=1, column=0, padx=10, pady=10)
-        save_button2 = tk.Button(self.root2, command=lambda: self.save_and_close(self.root2, 2))
-        save_button2.grid(row=1, column=0, padx=10, pady=10)
         self.root.mainloop()
-
-    def save_and_close(self, root, i):
-        # Captura a tela do root
-        x = root.winfo_rootx()
-        y = root.winfo_rooty()
-        width = root.winfo_width()
-        height = root.winfo_height()
-        ImageGrab.grab(bbox=(x, y, x + width, y + height)).save(f"image{i}.png")
-        # Fecha o root
-        root.destroy()
 
     def get_n_mortos (self, x, y):
         return self.informations[(x, y)][0]
