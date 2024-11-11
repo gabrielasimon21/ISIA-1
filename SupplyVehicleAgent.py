@@ -1,99 +1,108 @@
+import ast
 import asyncio
-import spade
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from spade.message import Message
-import time
-import heapq  
+
+import random
+from spade.template import Template
 
 class SupplyVehicleAgent(Agent):
-    def __init__(self, jid, password, depot_location, vehicle_capacity, resource_types, environment):
+    def __init__(self, jid, password, depot_location, resource_types, vehicle_capacity, environment):
         super().__init__(jid, password)
-        self.depot_location = depot_location  
-        self.vehicle_capacity = vehicle_capacity 
+        self.depot_location = depot_location
         self.resource_types = resource_types  # List of resources (food, water, medical supplies)
-        self.current_load = {}  
-        self.affected_regions = [] 
-        self.road_conditions = {}  
-        self.priority_levels = {} 
-        self.environment = environment 
-        
-    class SupplyVehicleBehaviour(CyclicBehaviour):
-        async def run(self):
-            msg = await self.receive(timeout=10)
-            if msg: 
-                instruction = eval(msg.body)
-                if instruction["type"] == "delivery_request":
-                    await self.handle_delivery_request(instruction)
-                elif instruction["type"] == "emergency_route_adjustment":
-                    await self.handle_emergency_adjustment(instruction)
-        
-        async def handle_delivery_request(self, instruction):
-            region = instruction["region"]
-            resources_needed = instruction["resources_needed"]
-            priority = instruction["priority"]
-            self.agent.affected_regions.append({"region": region, "resources_needed": resources_needed, "priority": priority})
-            self.agent.priority_levels[region] = priority
-            await self.agent.load_balance()
-            await self.agent.delivery_schedule()
-        
-        async def handle_emergency_adjustment(self, instruction):
-            new_condition = instruction["road_condition"]
-            self.agent.road_conditions[instruction["region"]] = new_condition
-            await self.agent.route_optimization()  
+        self.current_load = [0, 0, 0]
+        self.current_location = depot_location
+        self.vehicle_capacity = vehicle_capacity
+        self.environment = environment
+    async def setup(self):
+        template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
+        self.add_behaviour(SupplyVehicleRun(self, self.current_location, self.environment), template)
 
-    async def route_optimization(self):
-        graph = self.environment.get_road_network()
-        start = self.depot_location
-        destinations = [region["region"] for region in self.affected_regions]
-        best_route = self.dijkstra(graph, start, destinations)
-        print(f"Optimized route: {best_route}")
-    
-    def dijkstra(self, graph, start, destinations):
-        queue = [(0, start)]
-        visited = set()
-        distances = {start: 0}
-        while queue:
-            (cost, node) = heapq.heappop(queue)
-            if node in visited:
-                continue
-            visited.add(node)
-            for neighbor, weight in graph[node]:
-                if neighbor in visited:
-                    continue
-                new_cost = cost + weight
-                if neighbor not in distances or new_cost < distances[neighbor]:
-                    distances[neighbor] = new_cost
-                    heapq.heappush(queue, (new_cost, neighbor))
-        return distances
-    
-    async def load_balance(self):
-        total_load = sum(self.current_load.values())
-        if total_load > self.vehicle_capacity:
-            print("Load exceeds capacity! Adjusting...")
-        else:
-            print("Load balanced within capacity.")
-    
-    async def delivery_schedule(self):
-        sorted_regions = sorted(self.affected_regions, key=lambda x: (x["priority"], self.road_conditions.get(x["region"], "clear")))
-        for region in sorted_regions:
-            await self.deliver_resources(region)
-    
-    async def deliver_resources(self, region):
-        resources_needed = region["resources_needed"]
-        for resource, quantity in resources_needed.items():
-            if self.current_load.get(resource, 0) >= quantity:
-                print(f"Delivering {quantity} of {resource} to {region['region']}")
-                self.current_load[resource] -= quantity
-            else:
-                print(f"Insufficient {resource} to deliver to {region['region']}")
-    
-    async def return_to_depot(self):
-        print(f"Returning to depot at {self.depot_location} for refuel/reload.")
-        await asyncio.sleep(1)
-    
-    async def communicate_with_other_agents(self):
-        msg = Message(to="another_agent@localhost")
-        msg.set_metadata("performative", "inform")
-        msg.body = "Supply vehicle agent reporting status."
-        await self.send(msg)
+class SupplyVehicleRun(CyclicBehaviour):
+    def __init__(self, agent, location, map):
+        super().__init__()
+        self.agent = agent
+        self.location = location
+        self.position = [0, 0]
+        self.lock = asyncio.Lock()
+        self.map = map
+
+    def check_availability(self, required_resources):
+        i = 0
+        if isinstance(required_resources, dict):
+            required_resources = required_resources.items()
+
+        for resource, cap in required_resources:
+            if cap < self.agent.current_load[i]:
+                return False
+            i += 1
+        return True
+
+    def get_distance(self, position):
+        x = position[0]
+        y = position[1]
+        w = self.location[0]
+        z = self.location[1]
+        return abs(x-w) + abs (y-z)
+
+    async def send_proposal_message(self, position, urgency, resources, agent):
+        if self.check_availability(resources):
+            proposal_value = self.get_distance(position)
+            msg = Message(to=agent)
+            msg.set_metadata("performative", "propose")
+            msg.set_metadata("ontology", "myOntology")
+            msg.set_metadata("language", "OWL-S")
+            msg.set_metadata("value", str(proposal_value))
+            msg.body = f"Proposta com valor: {proposal_value}"
+            try:
+                await self.send(msg)
+            except Exception:
+                pass
+
+    async def deliver_resources(self, required_resources, agent):
+        i = 0
+        for resource, quantity in required_resources.items():
+            self.agent.current_load[i] -= quantity
+            i += 1
+        print(f"Delivered resources to shelter {agent}.")
+
+    async def check_resources(self):
+        total_load = 0
+        for i in range (len(self.agent.current_load)):
+            total_load += self.agent.current_load[i]
+        if total_load < self.agent.vehicle_capacity * 0.2:
+            time = self.get_distance(self.agent.depot_location)
+            await asyncio.sleep(time)
+            await self.reload_resources()
+
+    async def reload_resources(self):
+        time = 0.5
+        await asyncio.sleep(time)
+        for i in range (len(self.agent.resource_types)):
+            self.agent.current_load[i] = self.agent.vehicle_capacity / len(self.agent.resource_types)
+
+    async def run(self):
+        async with asyncio.Lock():
+            await self.reload_resources()
+            msg = await self.receive(timeout=1)
+            if msg:
+                sender = str(msg.sender)
+                position = msg.get_metadata("position")
+                urgency = msg.get_metadata("urgency")
+                resources = msg.get_metadata("resources")
+                resources = ast.literal_eval(resources)
+                position = ast.literal_eval(position)
+                if msg.get_metadata("performative") == "request":
+                    await self.send_proposal_message(position, urgency, resources, sender)
+                elif msg.get_metadata("performative") == "confirm":
+                    print(msg.body)
+                    time = self.get_distance(self.position) * 0.05  # 20 km/h
+                    delay = random.randint(0, 3) * 0.05  # Estrada cortada
+                    await asyncio.sleep(time + delay)
+                    self.agent.current_location = self.position
+                    await self.deliver_resources(resources, sender)
+                    time = 0.5 #Tempo de entrega: meia hora
+                    await asyncio.sleep(time)
+            await self.check_resources()
