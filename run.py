@@ -43,7 +43,7 @@ async def stop_agents(civil_agents, responder_agents, map):
         await agent.stop()
     for agent in supply_agents.values():
         await agent.stop()
-    update_gui(48, map)
+    update_gui(96, map)
     sys.exit(0)
 
 civil_agents = {}
@@ -126,7 +126,7 @@ async def main():
         await civil_agent.start(auto_register=True)
 
     #asyncio.ensure_future(update_map(map, 0))
-    await asyncio.sleep(50)
+    await asyncio.sleep(100)
     await stop_agents(civil_agents, responder_agents, map)
 
 

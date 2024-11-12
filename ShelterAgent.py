@@ -10,13 +10,13 @@ class ShelterAgent(Agent):
     def __init__(self, jid, password, number, location, capacity, environment):
         super().__init__(jid, password)
         self.number = number
-        self.location = location  
-        self.capacity = capacity  
-        self.current_occupancy = 0  
-        self.supply_status = {"food": 100, "water": 100, "medical_supplies": 50}  
-        self.resource_requirements = {"food": 0, "water": 0, "medical_supplies": 0} 
-        self.urgency_level = 0  
-        self.emergency_status = False 
+        self.location = location
+        self.capacity = capacity
+        self.current_occupancy = 0
+        self.supply_status = {"food": 100, "water": 100, "medical_supplies": 50}
+        self.resource_requirements = {"food": 0, "water": 0, "medical_supplies": 0}
+        self.urgency_level = 0
+        self.emergency_status = False
         self.environment = environment
 
     async def setup(self):
@@ -55,7 +55,7 @@ class ShelterRun(CyclicBehaviour):
         except Exception:
             pass
 
-    async def respond_proposals(self, civil, propose_messages, position, informations):
+    async def respond_proposals(self, shelter, civil, propose_messages, position, informations):
         max = 0
         best_agent = None
         refusal_agents = []
@@ -70,7 +70,12 @@ class ShelterRun(CyclicBehaviour):
                     max = value
                     best_agent = sender
         if best_agent == None:
-            await self.desconfirm_civil(civil, position)
+            if not shelter:
+                await self.desconfirm_civil(civil, position)
+            else:
+                print(f"DESALOJAMENTO: Os civis do shelter {civil.jid} ficaram desalojados por falta de recursos")
+                self.map.dados[8] -= self.agent.current_occupancy
+                self.agent.current_occupancy = 0
         else:
             best_agent = str(best_agent)
             msg = Message(to=best_agent)
@@ -82,9 +87,11 @@ class ShelterRun(CyclicBehaviour):
             msg.body = f"ALOCAÇÃO SHELTER: O agente escolhido para a célula {position} foi o Shelter Agent: {best_agent} e encontra-se à distância {max}km"
             try:
                 await self.send(msg)
-                await self.confirm_civil(civil, best_agent)
+                if not shelter:
+                    await self.confirm_civil(civil, best_agent)
             except Exception:
-                await self.desconfirm_civil(civil, position)
+                if not shelter:
+                    await self.desconfirm_civil(civil, position)
             for agent in refusal_agents:
                 if agent != best_agent:
                     agent = str(agent)
@@ -171,22 +178,27 @@ class ShelterRun(CyclicBehaviour):
                     best_agent = sender
         if best_agent == None:
             print(f"NEGAÇÃO SUPPLY: O Shelter agent {self.agent.jid} não conseguiu obter mais recursos")
+            location = str(self.agent.current_location)
+            occupancy = str (self.agent.current_occupancy)
+            await self.contract_net(location, occupancy, False, self.agent)
         else:
             best_agent = str(best_agent)
             msg = Message(to=best_agent)
             msg.set_metadata("performative", "confirm")
             msg.set_metadata("ontology", "myOntology")
             msg.set_metadata("language", "OWL-S")
-            msg.set_metadata("value", self.location)
-            msg.set_metadata("position", self.agent.location)
-            msg.set_metadata("urgency", self.agent.urgency_level)
-            msg.set_metadata("resources", self.agent.resource_requirements)
-            msg.body = f"REABASTECIMENTO: O agente escolhido para a célula {self.position} foi o Supply Agent: {best_agent} e encontra-se à distância {max}km"
+            location = str(self.agent.location)
+            urgency = str(self.agent.urgency_level)
+            resources = str(self.agent.resource_requirements)
+            msg.set_metadata("position", location)
+            msg.set_metadata("urgency", urgency)
+            msg.set_metadata("resources", resources)
+            msg.body = f"REABASTECIMENTO: O agente escolhido para o shelter {self.agent.jid} foi o Supply Agent: {best_agent} e encontra-se à distância {max}km"
             try:
                 await self.send(msg)
-                await self.receive_resources(self.agent.resource_requirements)
+                await self.receive_resources()
             except Exception:
-                print(f"NEGAÇÃO SUPPLY: O Shelter agent {self.agent.jid} não conseguiu obter mais recursos")
+                pass
             for agent in refusal_agents:
                 if agent != best_agent:
                     agent = str(agent)
@@ -216,11 +228,9 @@ class ShelterRun(CyclicBehaviour):
         else:
             self.urgency_level = 0
 
-    async def receive_resources(self, instruction):
-        delivered_resources = instruction["delivered_resources"]
-        for resource, quantity in delivered_resources.items():
+    async def receive_resources(self):
+        for resource, quantity in self.agent.resource_requirements:
             self.agent.supply_status[resource] += quantity
-        print(f"Received resources: {delivered_resources}")
 
     def get_rescue_time(self, information):
         time = information * 0.05 #Resgate de 20 civis p/h
@@ -241,6 +251,28 @@ class ShelterRun(CyclicBehaviour):
             if self.agent.supply_status[resource] < 0:
                 self.agent.supply_status[resource] = 0
 
+    async def contract_net(self, position, information, civil, sender):
+        for i in range(20):
+            if i != self.agent.number:
+                agent = f"shelter{i}@localhost"
+                msg = Message(to=agent)
+                msg.set_metadata("performative", "request")
+                msg.set_metadata("ontology", "myOntology")
+                msg.set_metadata("language", "OWL-S")
+                msg.set_metadata("value", position)
+                msg.set_metadata("value2", information)
+                msg.body = f"Está disponível? Quanto tempo demora?"
+                try:
+                    await self.send(msg)
+                except Exception:
+                    pass
+        shelter_propose_messages = []
+        for i in range(19):
+            msg = await self.receive(timeout=1)
+            if msg and msg.get_metadata("performative") == "propose":
+                shelter_propose_messages.append(msg)
+        await self.respond_proposals(civil, sender, shelter_propose_messages, position, information)
+
     async def run(self):
         async with self.lock:
             msg = await self.receive(timeout=1)
@@ -253,26 +285,7 @@ class ShelterRun(CyclicBehaviour):
                     self.position = ast.literal_eval(position)
                     self.information = int(information)
                     #CONTRACT NET
-                    for i in range(20):
-                        if i != self.agent.number:
-                            agent = f"shelter{i}@localhost"
-                            msg = Message(to=agent)
-                            msg.set_metadata("performative", "request")
-                            msg.set_metadata("ontology", "myOntology")
-                            msg.set_metadata("language", "OWL-S")
-                            msg.set_metadata("value", position)
-                            msg.set_metadata("value2", information)
-                            msg.body = f"Está disponível? Quanto tempo demora?"
-                            try:
-                                await self.send(msg)
-                            except Exception:
-                                pass
-                    shelter_propose_messages = []
-                    for i in range(19):
-                        msg = await self.receive(timeout=1)
-                        if msg and msg.get_metadata("performative") == "propose":
-                            shelter_propose_messages.append(msg)
-                    await self.respond_proposals(sender, shelter_propose_messages, position, information)
+                    await self.contract_net(position, information, True, sender)
                 elif msg.get_metadata("performative") == "request":
                     information = msg.get_metadata("value2")
                     information = int(information)
@@ -295,4 +308,3 @@ class ShelterRun(CyclicBehaviour):
                     self.map.dados[8] += self.information
         self.spend_resources()
         await self.check_resources()
-

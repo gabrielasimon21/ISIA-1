@@ -35,7 +35,7 @@ class SupplyVehicleRun(CyclicBehaviour):
             required_resources = required_resources.items()
 
         for resource, cap in required_resources:
-            if cap < self.agent.current_load[i]:
+            if cap > self.agent.current_load[i]:
                 return False
             i += 1
         return True
@@ -66,7 +66,6 @@ class SupplyVehicleRun(CyclicBehaviour):
         for resource, quantity in required_resources.items():
             self.agent.current_load[i] -= quantity
             i += 1
-        print(f"Delivered resources to shelter {agent}.")
 
     async def check_resources(self):
         total_load = 0
@@ -88,21 +87,22 @@ class SupplyVehicleRun(CyclicBehaviour):
             await self.reload_resources()
             msg = await self.receive(timeout=1)
             if msg:
-                sender = str(msg.sender)
-                position = msg.get_metadata("position")
-                urgency = msg.get_metadata("urgency")
-                resources = msg.get_metadata("resources")
-                resources = ast.literal_eval(resources)
-                position = ast.literal_eval(position)
-                if msg.get_metadata("performative") == "request":
-                    await self.send_proposal_message(position, urgency, resources, sender)
-                elif msg.get_metadata("performative") == "confirm":
-                    print(msg.body)
-                    time = self.get_distance(self.position) * 0.05  # 20 km/h
-                    delay = random.randint(0, 3) * 0.05  # Estrada cortada
-                    await asyncio.sleep(time + delay)
-                    self.agent.current_location = self.position
-                    await self.deliver_resources(resources, sender)
-                    time = 0.5 #Tempo de entrega: meia hora
-                    await asyncio.sleep(time)
+                if msg.get_metadata("performative") != "disconfirm":
+                    sender = str(msg.sender)
+                    position = msg.get_metadata("position")
+                    urgency = msg.get_metadata("urgency")
+                    resources = msg.get_metadata("resources")
+                    resources = ast.literal_eval(resources)
+                    position = ast.literal_eval(position)
+                    if msg.get_metadata("performative") == "request":
+                        await self.send_proposal_message(position, urgency, resources, sender)
+                    elif msg.get_metadata("performative") == "confirm":
+                        print(msg.body)
+                        time = self.get_distance(self.position) * 0.05  # 20 km/h
+                        delay = random.randint(0, 3) * 0.05  # Estrada cortada
+                        await asyncio.sleep(time + delay)
+                        self.agent.current_location = self.position
+                        await self.deliver_resources(resources, sender)
+                        time = 0.5 #Tempo de entrega: meia hora
+                        await asyncio.sleep(time)
             await self.check_resources()
