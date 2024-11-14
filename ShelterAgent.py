@@ -7,7 +7,7 @@ import ast
 import random
 
 class ShelterAgent(Agent):
-    def __init__(self, jid, password, number, location, capacity, environment):
+    def __init__(self, jid, password, number, location, capacity, environment, supply_inic):
         super().__init__(jid, password)
         self.number = number
         self.location = location
@@ -18,6 +18,7 @@ class ShelterAgent(Agent):
         self.urgency_level = 0
         self.emergency_status = False
         self.environment = environment
+        self.supply_i = supply_inic
 
     async def setup(self):
         template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
@@ -55,7 +56,7 @@ class ShelterRun(CyclicBehaviour):
         except Exception:
             pass
 
-    async def respond_proposals(self, shelter, civil, propose_messages, position, informations):
+    async def respond_proposals(self, not_shelter, civil, propose_messages, position, informations):
         max = 0
         best_agent = None
         refusal_agents = []
@@ -70,7 +71,7 @@ class ShelterRun(CyclicBehaviour):
                     max = value
                     best_agent = sender
         if best_agent == None:
-            if not shelter:
+            if not_shelter:
                 await self.desconfirm_civil(civil, position)
             else:
                 print(f"DESALOJAMENTO: Os civis do shelter {civil.jid} ficaram desalojados por falta de recursos")
@@ -87,10 +88,10 @@ class ShelterRun(CyclicBehaviour):
             msg.body = f"ALOCAÇÃO SHELTER: O agente escolhido para a célula {position} foi o Shelter Agent: {best_agent} e encontra-se à distância {max}km"
             try:
                 await self.send(msg)
-                if not shelter:
+                if not_shelter:
                     await self.confirm_civil(civil, best_agent)
             except Exception:
-                if not shelter:
+                if not_shelter:
                     await self.desconfirm_civil(civil, position)
             for agent in refusal_agents:
                 if agent != best_agent:
@@ -104,7 +105,6 @@ class ShelterRun(CyclicBehaviour):
                         await self.send(msg)
                     except Exception:
                         pass
-
 
     def check_availability(self, civilians):
         return self.agent.current_occupancy + civilians <= self.agent.capacity
@@ -126,8 +126,8 @@ class ShelterRun(CyclicBehaviour):
     async def check_resources(self):
         for resource, amount in self.agent.supply_status.items():
             if amount < (0.2 * self.agent.capacity):
-                print(f"RESOURCE - {self.agent.jid}: {resource} está abaixo de 20%, pedido de mais")
-                await self.request_resources()
+                print(f"RECURSOS - {self.agent.jid}: {resource} está abaixo de 20%, pedido de mais")
+                await self.contract_net_supply()
                 break
 
     def update_resource_requirements(self):
@@ -136,9 +136,9 @@ class ShelterRun(CyclicBehaviour):
         self.agent.resource_requirements["medical_supplies"] = self.agent.current_occupancy * 0.1
         self.update_urgency()
 
-    async def request_resources(self):
+    async def contract_net_supply(self):
         self.update_resource_requirements()
-        for i in range(1, 10):
+        for i in self.agent.supply_i:
             agent = f"supply{i}@localhost"
             msg = Message(to=agent)
             location = str(self.location)
@@ -158,7 +158,9 @@ class ShelterRun(CyclicBehaviour):
         propose_messages = []
         for i in range(19):
             msg = await self.receive(timeout=1)
-            if msg and msg.get_metadata("performative") == "propose":
+            if msg:
+                dest = str(msg.sender)
+            if msg and msg.get_metadata("performative") == "propose" and not dest.startswith("shelter"):
                 propose_messages.append(msg)
         await self.respond_proposals_supply(propose_messages)
 
@@ -177,6 +179,7 @@ class ShelterRun(CyclicBehaviour):
                     max = value
                     best_agent = sender
         if best_agent == None:
+            self.agent.environment.n_recusas += 1
             print(f"NEGAÇÃO SUPPLY: O Shelter agent {self.agent.jid} não conseguiu obter mais recursos")
             location = str(self.agent.current_location)
             occupancy = str (self.agent.current_occupancy)
@@ -269,7 +272,9 @@ class ShelterRun(CyclicBehaviour):
         shelter_propose_messages = []
         for i in range(19):
             msg = await self.receive(timeout=1)
-            if msg and msg.get_metadata("performative") == "propose":
+            if msg:
+                dest = str(msg.sender)
+            if msg and msg.get_metadata("performative") == "propose" and not dest.startswith("supply"):
                 shelter_propose_messages.append(msg)
         await self.respond_proposals(civil, sender, shelter_propose_messages, position, information)
 
@@ -282,8 +287,6 @@ class ShelterRun(CyclicBehaviour):
                 if msg.get_metadata("performative") == "inform":
                     print(msg.body)
                     information = msg.get_metadata("value2")
-                    self.position = ast.literal_eval(position)
-                    self.information = int(information)
                     #CONTRACT NET
                     await self.contract_net(position, information, True, sender)
                 elif msg.get_metadata("performative") == "request":

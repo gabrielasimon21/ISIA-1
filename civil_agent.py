@@ -35,6 +35,7 @@ class CivilRun(CyclicBehaviour):
     async def run(self):
         async with self.lock:
             if self.civil.resg1 == False:
+                self.civil.environment.n_pedidos += 1
                 i = random.choice(self.civil.resp_c)
                 agent = f"responder{i}@localhost"
                 msg = Message(to=agent)
@@ -54,6 +55,7 @@ class CivilRun(CyclicBehaviour):
                     if msg.get_metadata("performative") == "confirm":
                         self.civil.resg1 = True
                     else:
+                        self.civil.environment.n_recusas += 1
                         print(msg.body)
 
 class CivilRun2(CyclicBehaviour):
@@ -65,6 +67,7 @@ class CivilRun2(CyclicBehaviour):
     async def run(self):
         async with self.lock:
             if self.civil.resg2 == False:
+                self.civil.environment.n_pedidos += 1
                 i = random.choice(self.civil.shelt_c)
                 agent = f"shelter{i}@localhost"
                 msg = Message(to=agent)
@@ -84,6 +87,7 @@ class CivilRun2(CyclicBehaviour):
                     if msg.get_metadata("performative") == "confirm":
                         self.civil.resg2 = True
                     else:
+                        self.civil.environment.n_recusas += 1
                         print(msg.body)
 
 

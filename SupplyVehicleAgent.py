@@ -65,6 +65,7 @@ class SupplyVehicleRun(CyclicBehaviour):
         i = 0
         for resource, quantity in required_resources.items():
             self.agent.current_load[i] -= quantity
+            self.map.rec_ent[resource] += quantity
             i += 1
 
     async def check_resources(self):

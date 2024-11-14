@@ -32,7 +32,6 @@ class ResponderRun(CyclicBehaviour):
         max = 0
         best_agent = None
         refusal_agents = []
-        exception = False
         for msg in propose_messages:
             sender = msg.sender
             refusal_agents.append(sender)
@@ -131,6 +130,27 @@ class ResponderRun(CyclicBehaviour):
         time = information[0] * 0.1 + information [1] * 0.1 #Resgate de 10 feridos e 10 mortos p/h
         return time
 
+    async def contract_net(self, sender, position, information):
+        for i in range(20):
+            if i != self.agent.number:
+                agent = f"responder{i}@localhost"
+                msg = Message(to=agent)
+                msg.set_metadata("performative", "request")
+                msg.set_metadata("ontology", "myOntology")
+                msg.set_metadata("language", "OWL-S")
+                msg.set_metadata("value", position)
+                msg.body = f"Está disponível? Quanto tempo demora?"
+                try:
+                    await self.send(msg)
+                except Exception:
+                    pass
+        propose_messages = []
+        for i in range(19):
+            msg = await self.receive(timeout=1)
+            if msg and msg.get_metadata("performative") == "propose":
+                propose_messages.append(msg)
+        await self.respond_proposals(sender, propose_messages, position, information)
+
 
     async def run(self):
         async with self.lock:
@@ -141,28 +161,7 @@ class ResponderRun(CyclicBehaviour):
                 if msg.get_metadata("performative") == "inform":
                     print(msg.body)
                     information = msg.get_metadata("value2")
-                    self.position = ast.literal_eval(position)
-                    self.information = ast.literal_eval(information)
-                    #CONTRACT NET
-                    for i in range(20):
-                        if i != self.agent.number:
-                            agent = f"responder{i}@localhost"
-                            msg = Message(to=agent)
-                            msg.set_metadata("performative", "request")
-                            msg.set_metadata("ontology", "myOntology")
-                            msg.set_metadata("language", "OWL-S")
-                            msg.set_metadata("value", position)
-                            msg.body = f"Está disponível? Quanto tempo demora?"
-                            try:
-                                await self.send(msg)
-                            except Exception:
-                                pass
-                    propose_messages = []
-                    for i in range(19):
-                        msg = await self.receive(timeout=1)
-                        if msg and msg.get_metadata("performative") == "propose":
-                            propose_messages.append(msg)
-                    await self.respond_proposals(sender, propose_messages, position, information)
+                    await self.contract_net(sender, position, information)
                 elif msg.get_metadata("performative") == "request":
                     position = ast.literal_eval(position)
                     await self.send_proposal_message(sender, position)
