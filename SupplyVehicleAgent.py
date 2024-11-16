@@ -3,10 +3,10 @@ import asyncio
 from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour
 from spade.message import Message
-
 import random
 from spade.template import Template
 
+# Classe que representa os Supply Agents
 class SupplyVehicleAgent(Agent):
     def __init__(self, jid, password, depot_location, resource_types, vehicle_capacity, environment):
         super().__init__(jid, password)
@@ -16,6 +16,7 @@ class SupplyVehicleAgent(Agent):
         self.current_location = depot_location
         self.vehicle_capacity = vehicle_capacity
         self.environment = environment
+    # Função que inicia o comportamento cíclico dos Supply Agents
     async def setup(self):
         template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
         try:
@@ -23,6 +24,7 @@ class SupplyVehicleAgent(Agent):
         except Exception as e:
             print(f"ERRO: {e}")
 
+# Classe que representa o comportamento cíclico dos Supply Agents
 class SupplyVehicleRun(CyclicBehaviour):
     def __init__(self, agent, location, map):
         super().__init__()
@@ -32,6 +34,7 @@ class SupplyVehicleRun(CyclicBehaviour):
         self.lock = asyncio.Lock()
         self.map = map
 
+    # Função que avalia a disponibilidade de um Supply Agent entregar x recursos a um abrigo
     def check_availability(self, required_resources):
         i = 0
         if isinstance(required_resources, dict):
@@ -43,6 +46,7 @@ class SupplyVehicleRun(CyclicBehaviour):
             i += 1
         return True
 
+    # Função que calcula a distância a uma determinada célula
     def get_distance(self, position):
         x = position[0]
         y = position[1]
@@ -50,6 +54,7 @@ class SupplyVehicleRun(CyclicBehaviour):
         z = self.location[1]
         return abs(x-w) + abs (y-z)
 
+    # Função que envia uma proposta para um Shelter Agent que lhe enviou um request durante o protocolo Contract Net
     async def send_proposal_message(self, position, urgency, resources, agent):
         if self.check_availability(resources):
             proposal_value = self.get_distance(position)
@@ -64,6 +69,7 @@ class SupplyVehicleRun(CyclicBehaviour):
             except Exception:
                 pass
 
+    # Função que entrega os recursos a um abrigo
     async def deliver_resources(self, required_resources, agent):
         i = 0
         for resource, quantity in required_resources.items():
@@ -71,6 +77,7 @@ class SupplyVehicleRun(CyclicBehaviour):
             self.map.rec_ent[resource] += quantity
             i += 1
 
+    # Função que avalia a quantidade de recursos disponíveis no camião
     async def check_resources(self):
         total_load = 0
         for i in range (len(self.agent.current_load)):
@@ -80,12 +87,15 @@ class SupplyVehicleRun(CyclicBehaviour):
             await asyncio.sleep(time)
             await self.reload_resources()
 
+    # Função que reabastece numa base os recursos do camião
     async def reload_resources(self):
         time = 0.5
         await asyncio.sleep(time)
         for i in range (len(self.agent.resource_types)):
             self.agent.current_load[i] = self.agent.vehicle_capacity / len(self.agent.resource_types)
 
+    # Função que define o comportamento cíclico de um Shelter Agent, que aguarda uma mensagem e depois age de acordo com o tipo de mensagem recebida
+    # Chama a função que avalia os recursos do camião
     async def run(self):
         async with asyncio.Lock():
             await self.reload_resources()

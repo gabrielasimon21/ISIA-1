@@ -7,7 +7,7 @@ from map import Map
 import sys
 import tkinter as tk
 
-
+# Função para imprimir dados de salvamento quando o programa ara de correr
 def update_gui(i, map, dados, rec_nao_uti):
     root = tk.Tk()
     frame = tk.Frame(root)
@@ -16,6 +16,7 @@ def update_gui(i, map, dados, rec_nao_uti):
     legendas(map, root, dados, rec_nao_uti)
     root.mainloop()
 
+# Função para recolher dados de salvamento quando o programa para de correr
 def legendas (map, root, dados_atua, rec_uti):
     dados = ["String"] * 10
     descricoes = ["Nº de mortos: ", "Nº de feridos: ", "Nº de civis a necessitar de abrigo: ", "Nº de mortos resgatados: ", "Nº de feridos resgatados: ", "Nº de civis abrigados: ", "Comida utilizada: ", "Água utilizada: ", "Medicamentos utilizados: ", "Nº de recusas: "]
@@ -37,6 +38,7 @@ def legendas (map, root, dados_atua, rec_uti):
         label_valor = tk.Label(root, text=valor)
         label_valor.grid(row=i, column=1, padx=10, pady=5, sticky="w")
 
+# Função que para o programa após x tempo
 async def stop_running(map, n_shelter):
     print ("Fim do programa")
     try:
@@ -74,6 +76,7 @@ n_shelter = 0
 map = Map()
 active_agents = []
 
+# Função que inicia os agentes
 async def main():
     global n_shelter, map, civil_agents, responder_agents, supply_agents, shelter_agents, active_agents
     map.create_gui()
@@ -139,6 +142,7 @@ async def main():
         await civil_agent.start(auto_register=True)
         active_agents.append(civil_agent)
 
+# Função que controla o tempo que o programa está a correr
 async def run_with_timeout():
     try:
         await asyncio.wait_for(main(), timeout=120)

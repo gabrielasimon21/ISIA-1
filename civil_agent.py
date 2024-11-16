@@ -19,6 +19,7 @@ class Civil(Agent):
         self.n_responder_agents = n_responder_agents
         self.n_shelter_agents = n_shelter_agents
 
+    # Função que inicia o comportamento cíclico do agente civil, que é diferente caso seja o representante dos mortos e feridos ou o representante dos civis que necessitam de abrigo
     async def setup(self):
         self.mortos = self.environment.get_n_mortos(self.position[0], self.position[1])
         self.feridos = self.environment.get_n_feridos(self.position[0], self.position[1])
@@ -34,12 +35,14 @@ class Civil(Agent):
             except Exception as e:
                 print(f"ERRO: {e}")
 
+# Classe que representa o comportamento cíclico do civil representante dos mortos e feridos
 class CivilRun(CyclicBehaviour):
     def __init__(self, civil):
         super().__init__()
         self.civil = civil
         self.lock = asyncio.Lock()
 
+    # Enquanto os mortos e feridos da célula que este civil representa não forem socorridos, ele envia mensagens de informação a um Responder Agent escolhido aleatoriamente
     async def run(self):
         async with self.lock:
             if self.civil.resg1 == False:
@@ -66,12 +69,14 @@ class CivilRun(CyclicBehaviour):
                         self.civil.environment.n_recusas += 1
                         print(msg.body)
 
+# Classe que representa o comportamento cíclico do civil representante dos civis que necessitam de abrigo
 class CivilRun2(CyclicBehaviour):
     def __init__(self, civil):
         super().__init__()
         self.civil = civil
         self.lock = asyncio.Lock()
 
+    # Enquanto os civis que necessitam de abrigo da célula que este civil representa não forem socorridos, ele envia mensagens de informação a um Shelter Agent escolhido aleatoriamente
     async def run(self):
         async with self.lock:
             if self.civil.resg2 == False:

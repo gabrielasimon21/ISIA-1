@@ -6,6 +6,7 @@ from spade.template import Template
 import ast
 import random
 
+# Classe que representa os Shelter Agents
 class ShelterAgent(Agent):
     def __init__(self, jid, password, number, location, capacity, environment, n_supply_agents):
         super().__init__(jid, password)
@@ -20,6 +21,7 @@ class ShelterAgent(Agent):
         self.environment = environment
         self.n_supply_agents = n_supply_agents
 
+    # Função que inicia o comportamento cíclico dos Shelter Agents
     async def setup(self):
         template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
         try:
@@ -27,6 +29,7 @@ class ShelterAgent(Agent):
         except Exception as e:
             print(f"ERRO: {e}")
 
+# Classe que representa o comportamento cíclico dos Shelter Agents
 class ShelterRun(CyclicBehaviour):
     def __init__(self, agent, location, map):
         super().__init__()
@@ -37,6 +40,7 @@ class ShelterRun(CyclicBehaviour):
         self.lock = asyncio.Lock()
         self.map = map
 
+    # Função que envia mensagem ao agente civil a informar que foi alocado um agente para socorrer os civis a necessitar de abrigo da sua célula
     async def confirm_civil(self, civil, agent):
         msg = Message(to=civil)
         msg.set_metadata("performative", "confirm")
@@ -48,6 +52,7 @@ class ShelterRun(CyclicBehaviour):
         except Exception:
             pass
 
+    # Função que envia uma mensagem ao agente civil a informar que não existem agentes disponíveis neste momento para socorrer os civis a necessitar de abrigo da sua célula
     async def desconfirm_civil(self, civil, position):
         msg = Message(to=civil)
         msg.set_metadata("performative", "desconfirm")
@@ -59,6 +64,11 @@ class ShelterRun(CyclicBehaviour):
         except Exception:
             pass
 
+    # Função que avalia as propostas enviadas no protocolo Contract Net com outros Shelter Agents
+    # Responde com uma mensagem de confirmação ao agente com a melhor proposta (o que se encontra mais perto do pedido de socorro)
+    # Responde com mensagens de desconfirmação a todos os outros agentes que enviaram propoposta e não foram escolhidos
+    # Informa o civil do agente que foi escolhido para a sua célula (caso seja o caso)
+    # Informa o civil que não foi possível atribuir nenhum agente à sua célula (caso seja o caso)
     async def respond_proposals(self, not_shelter, civil, propose_messages, position, informations):
         max = 0
         best_agent = None
@@ -109,9 +119,11 @@ class ShelterRun(CyclicBehaviour):
                     except Exception:
                         pass
 
+    # Função que avalia a disponibilidade de um Shelter Agent receber x número de civis no seu abrigo
     def check_availability(self, civilians):
         return self.agent.current_occupancy + civilians <= self.agent.capacity
 
+    # Função que envia uma proposta para outro agente que lhe enviou um request durante o protocolo Contract Net
     async def send_proposal_message(self, position, information, agent):
         if self.check_availability(information):
             proposal_value = self.get_distance(position)
@@ -126,6 +138,8 @@ class ShelterRun(CyclicBehaviour):
             except Exception:
                 pass
 
+    # Função que avalia o número de recursos do Shelter
+    # Caso sejam necessários mais recursos, inicia um protocolo Contract Net com os Supply Agents
     async def check_resources(self):
         for resource, amount in self.agent.supply_status.items():
             if amount < (0.2 * self.agent.capacity):
@@ -133,12 +147,15 @@ class ShelterRun(CyclicBehaviour):
                 await self.contract_net_supply()
                 break
 
+    # Função que atualiza o número de recursos do shelter
     def update_resource_requirements(self):
         self.agent.resource_requirements["food"] = self.agent.current_occupancy * 2
         self.agent.resource_requirements["water"] = self.agent.current_occupancy * 3
         self.agent.resource_requirements["medical_supplies"] = self.agent.current_occupancy * 0.1
         self.update_urgency()
 
+    # Função que inicia um protocolo Contract Net ao enviar a todos os Supply um request
+    # Depois de enviados os requests, guarda as mensagens de propostas para serem analisadas
     async def contract_net_supply(self):
         self.update_resource_requirements()
         for i in range(1, self.agent.n_supply_agents):
@@ -170,6 +187,11 @@ class ShelterRun(CyclicBehaviour):
                 pass
         await self.respond_proposals_supply(propose_messages)
 
+    # Função que avalia as propostas enviadas no protocolo Contract Net com os Supply Agents
+    # Responde com uma mensagem de confirmação ao agente com a melhor proposta (o que se encontra mais perto do pedido de socorro)
+    # Responde com mensagens de desconfirmação a todos os outros agentes que enviaram propoposta e não foram escolhidos
+    # Caso seja escolhido um agente, reabastece os seus recursos
+    # Caso não seja escolhido um agente, inicia um rotocolo Contract Net para realojar os agentes civis do seu abrigo
     async def respond_proposals_supply(self, propose_messages):
         max = 0
         best_agent = None
@@ -221,6 +243,7 @@ class ShelterRun(CyclicBehaviour):
                     except Exception:
                         pass
 
+    # Função que avalia a urgência com que o Shelter Agent necessita de recursos
     def update_urgency(self):
         food_shortage = self.agent.resource_requirements["food"] - self.agent.supply_status["food"]
         water_shortage = self.agent.resource_requirements["water"] - self.agent.supply_status["water"]
@@ -237,14 +260,17 @@ class ShelterRun(CyclicBehaviour):
         else:
             self.urgency_level = 0
 
+    # Função que simula o reabastecimento do abrigo
     async def receive_resources(self):
         for resource, quantity in self.agent.resource_requirements:
             self.agent.supply_status[resource] += quantity
 
+    # Função que simula o tempo que demora a socorrer x civis a necessitar de abrigo
     def get_rescue_time(self, information):
         time = information * 0.05 #Resgate de 20 civis p/h
         return time
 
+    # Função que calcula a distância a uma determinada célula afetada
     def get_distance(self, position):
         x = position[0]
         y = position[1]
@@ -252,6 +278,7 @@ class ShelterRun(CyclicBehaviour):
         z = self.location[1]
         return abs(x-w) + abs (y-z)
 
+    # Função que gasta os recursos, de acordo com o número de ocupantes do abrigo
     def spend_resources(self):
         self.agent.supply_status['food'] -= self.agent.current_occupancy * 0.1
         self.agent.supply_status['water'] -= self.agent.current_occupancy * 0.1
@@ -260,6 +287,8 @@ class ShelterRun(CyclicBehaviour):
             if self.agent.supply_status[resource] < 0:
                 self.agent.supply_status[resource] = 0
 
+    # Função que inicia um protocolo Contract Net ao enviar a todos os Shelter Agents um request
+    # Depois de enviados os requests, guarda as mensagens de propostas para serem analisadas
     async def contract_net(self, position, information, civil, sender):
         for i in range(12):
             if i != self.agent.number:
@@ -287,6 +316,9 @@ class ShelterRun(CyclicBehaviour):
                 pass
         await self.respond_proposals(civil, sender, shelter_propose_messages, position, information)
 
+    # Função que define o comportamento cíclico de um Shelter Agent, que aguarda uma mensagem e depois age de acordo com o tipo de mensagem recebida
+    # Chama a função que gasta os recursos do abrigo
+    # Chama a função que avalia os recursos do abrigo
     async def run(self):
         async with self.lock:
             try:

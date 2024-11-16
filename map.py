@@ -53,6 +53,7 @@ class Map:
             else:
                 self.supply_points.append(w)
 
+    # Função que cria a interface gráfica
     async def setup(self):
         self.create_gui()
 
@@ -79,29 +80,37 @@ class Map:
         self.draw_points()
         self.root.mainloop()
 
+    # Função que retorna o número de mortos numa determinada célula
     def get_n_mortos (self, x, y):
         return self.informations[(x, y)][0]
 
+    # Função que retorna o número de civis que necessitam de abrigo numa determinada célula
     def get_n_civis_abrigo (self, x, y):
         return self.informations[(x, y)][2]
 
+    # Função que retorna o número de feridos numa determinada célula
     def get_n_feridos (self, x, y):
         return self.informations[(x, y)][1]
 
+    # Função que verifica se uma determinada célula foi afetada pela catástrofe
     def affected_point (self, position):
         if position in self.affected_points:
             return True
         return False
 
+    # Função que retorna as localizações dos Responder Agents
     def get_responder_points(self):
         return self.responder_points
 
+    # Função que retorna as localizações dos Shelter Agents
     def get_shelter_points(self):
         return self.shelter_points
 
+    # Função que retorna as localizações dos Supply Agents
     def get_supply_points(self):
         return self.supply_points
 
+    # Função que desenha os diferentes tipos de pontos na interface gráfica
     def draw_points(self):
         for key, value in self.points.items():
             x_cell, y_cell = key
@@ -109,11 +118,13 @@ class Map:
             self.canvas.create_oval(x_cell * self.CELL_SIZE - 5, y_cell * self.CELL_SIZE - 5, x_cell * self.CELL_SIZE + 5, y_cell * self.CELL_SIZE + 5, fill=color, outline=color)
         self.canvas.pack()
 
+    # Função que desenha as estradas na interface gráfica
     def draw_road(self):
         for line in self.road_points:
             x1, y1, x2, y2 = line
             self.canvas.create_line(x1 * self.CELL_SIZE, y1 * self.CELL_SIZE, x2 * self.CELL_SIZE, y2 * self.CELL_SIZE, fill='black', width=5)
 
+    # Função que retorna a cor de cada célula mediante a quantidade de população da mesma
     def get_color(self, population):
         if population < 25:
             return "#d3d3d3"
@@ -122,7 +133,7 @@ class Map:
         else:
             return "#696969"
 
-    # Terramoto
+    # Função que calcula a cor de cada célula afetada pelo Terramoto
     def calculate_color_earthquake (self, gravity, distance):
         max_intensity = 100
         min_intensity = 255
@@ -133,6 +144,11 @@ class Map:
             self.legend_colors_earthquake.append(color)
         return color
 
+    # Função que simula o Terramoto
+    # O epicentro é escolhido de forma aleatória
+    # O número de mortos em cada célula é um número aleatório, que pode variar entre 1 e 10% da população dessa célula
+    # O número de feridos em cada célula é um número aleatório, que pode variar entre 20 e 50% da população dessa célula
+    # O número de civis a necessitar de abrigo em cada célula é um número aleatório, que pode variar entre 10 e 30% da população dessa célula
     def terramoto (self):
         epicenter_x = random.randint(3, 18)
         epicenter_y = random.randint(3, 18)
@@ -174,7 +190,7 @@ class Map:
                 destruction = 1000 / intensity
                 tk.Label(self.legend_frame, text=f"{destruction} ", bg= color, width=20).pack(anchor=tk.W)
 
-    # Tsunami
+    # Função que calcula a cor de cada célula afetada pelo Tsunami
     def calculate_color_tsunami(self, distance_sea, distance_tsunami):
         max_intensity = 255
         min_intensity = 100
@@ -186,6 +202,7 @@ class Map:
             self.legend_colors_tsunami.append(color)
         return color
 
+    # Função que calcula a distância duma determinada célula ao mar
     def calculate_distance_sea (self, i, j):
         min_distance = 50
         for point in self.sea_points:
@@ -194,6 +211,10 @@ class Map:
                 min_distance = distance
         return min_distance
 
+    # Função que simula o Tsunami
+    # O número de mortos em cada célula é um número aleatório, que pode variar entre 1 e 10% da população dessa célula
+    # O número de feridos em cada célula é um número aleatório, que pode variar entre 20 e 50% da população dessa célula
+    # O número de civis a necessitar de abrigo em cada célula é um número aleatório, que pode variar entre 10 e 30% da população dessa célula
     def tsunami (self):
         distance_tsunami = 2
         for i in range(self.GRID_SIZE):
@@ -237,7 +258,11 @@ class Map:
                 destruction = 1000 / intensity
                 tk.Label(self.legend_frame, text=f"{destruction} ", bg= color, width=20).pack(anchor=tk.W)
 
-    # Terramoto + Tsunami
+    # Função que simula Terramoto e Tsunami simultâneo
+    # O epicentro do Terramoto é escolhido de forma aleatória
+    # O número de mortos em cada célula é um número aleatório, que pode variar entre 1 e 10% da população dessa célula se for afetada por apenas uma das catástrofes, e 10 a 20% se for afetadp pelas duas
+    # O número de feridos em cada célula é um número aleatório, que pode variar entre 20 e 50% da população dessa célula se for afetada por apenas uma das catástrofes, e 35 a 50% se for afetadp pelas duas
+    # O número de civis a necessitar de abrigo em cada célula é um número aleatório, que pode variar entre 10 e 30% da população dessa célula
     def terramoto_tsunami (self):
         epicenter_x = random.randint(3, 18)
         epicenter_y = random.randint(3, 18)
@@ -325,8 +350,7 @@ class Map:
                 tk.Label(self.legend_frame, text=f"{destruction} ", bg= color, width=20).pack(anchor=tk.W)
 
 
-    #Legendas do Mapa
-
+    # Função que cria as legendas do mapa da interface gráfica
     def legendas (self):
         self.legend_frame.grid(column=1, row=0, padx=10, pady=10, sticky=tk.N)
         tk.Label(self.legend_frame, text="População/Mar:", font=("Arial", 12, "bold")).pack(anchor=tk.W)
@@ -350,6 +374,7 @@ class Map:
             canvas.create_oval(5, 5, 15, 15, fill=color)
             canvas.pack(side=tk.RIGHT)
 
+    # Função que cria as legendas dos dados de detsruição da catástrofe
     def legendas2 (self):
         n_responder_agents = 0
         n_shelter_agents = 0
