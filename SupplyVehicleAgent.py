@@ -18,7 +18,10 @@ class SupplyVehicleAgent(Agent):
         self.environment = environment
     async def setup(self):
         template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
-        self.add_behaviour(SupplyVehicleRun(self, self.current_location, self.environment), template)
+        try:
+            self.add_behaviour(SupplyVehicleRun(self, self.current_location, self.environment), template)
+        except Exception as e:
+            print(f"ERRO: {e}")
 
 class SupplyVehicleRun(CyclicBehaviour):
     def __init__(self, agent, location, map):

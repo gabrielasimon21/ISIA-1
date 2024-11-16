@@ -7,7 +7,7 @@ import ast
 import random
 
 class ShelterAgent(Agent):
-    def __init__(self, jid, password, number, location, capacity, environment, supply_inic):
+    def __init__(self, jid, password, number, location, capacity, environment, n_supply_agents):
         super().__init__(jid, password)
         self.number = number
         self.location = location
@@ -18,11 +18,14 @@ class ShelterAgent(Agent):
         self.urgency_level = 0
         self.emergency_status = False
         self.environment = environment
-        self.supply_i = supply_inic
+        self.n_supply_agents = n_supply_agents
 
     async def setup(self):
         template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
-        self.add_behaviour(ShelterRun(self, self.location, self.environment), template)
+        try:
+            self.add_behaviour(ShelterRun(self, self.location, self.environment), template)
+        except Exception as e:
+            print(f"ERRO: {e}")
 
 class ShelterRun(CyclicBehaviour):
     def __init__(self, agent, location, map):
@@ -138,7 +141,7 @@ class ShelterRun(CyclicBehaviour):
 
     async def contract_net_supply(self):
         self.update_resource_requirements()
-        for i in self.agent.supply_i:
+        for i in range(1, self.agent.n_supply_agents):
             agent = f"supply{i}@localhost"
             msg = Message(to=agent)
             location = str(self.location)
@@ -156,7 +159,7 @@ class ShelterRun(CyclicBehaviour):
             except Exception:
                 pass
         propose_messages = []
-        for i in range(len(self.agent.supply_i)-1):
+        for i in range(self.agent.n_supply_agents):
             try:
                 msg = await self.receive(timeout=1)
                 if msg:

@@ -16,7 +16,10 @@ class ResponderAgent(Agent):
 
     async def setup(self):
         template = Template(metadata={"ontology": "myOntology", "language": "OWL-S"})
-        self.add_behaviour(ResponderRun(self, self.current_location, self.environment), template)
+        try:
+            self.add_behaviour(ResponderRun(self, self.current_location, self.environment), template)
+        except Exception as e:
+            print(f"ERRO: {e}")
 
 class ResponderRun(CyclicBehaviour):
     def __init__(self, agent, location, map):

@@ -48,9 +48,12 @@ async def stop_running(map, n_shelter):
         resources = ["food", "water", "medical_supplies"]
         for agent in shelter_agents.values():
             i = 0
-            for value in agent.supply_status.values():
-                rec_ut[resources[i]] -= value
-                i += 1
+            try:
+                for value in agent.supply_status.values():
+                    rec_ut[resources[i]] -= value
+                    i += 1
+            except Exception:
+                continue
         i = 0
         for value in map.rec_ent.values():
             rec_ut[resources[i]] += value
@@ -72,45 +75,36 @@ map = Map()
 active_agents = []
 
 async def main():
-    global n_shelter, map
+    global n_shelter, map, civil_agents, responder_agents, supply_agents, shelter_agents, active_agents
     map.create_gui()
     affected_points = map.affected_points
 
     supply_points = map.get_supply_points()
     i = 1
-    for point in supply_points: #5, 5
-        for j in range(5):
-            supply_agents[i] = SupplyVehicleAgent(f"supply{i}@localhost", "password", point, ["food", "water", "medical_supplies"], 800, map)
-            i += 1
+    for point in supply_points:
+        if point not in affected_points:#5, 5
+            for j in range(5):
+                supply_agents[i] = SupplyVehicleAgent(f"supply{i}@localhost", "password", point, ["food", "water", "medical_supplies"], 800, map)
+                i += 1
+    n_supply_agents = i
 
-    supply_inic = []
-    for j in range (1, 10):
-        if supply_agents[j].current_location not in affected_points:
-            await supply_agents[j].start(auto_register=True)
-            supply_inic.append(j)
-            active_agents.append(supply_agents[j])
+    for j in range (1, i):
+        await supply_agents[j].start(auto_register=True)
+        active_agents.append(supply_agents[j])
 
     shelter_points = map.get_shelter_points()
     i = 1
     for point in shelter_points: #4, 4, 4
-        for j in range (4):
-            shelter_agents[i] = ShelterAgent(f"shelter{i}@localhost", "password", i, point, 200, map, supply_inic)
-            i += 1
+        if point not in affected_points:
+            for j in range (4):
+                shelter_agents[i] = ShelterAgent(f"shelter{i}@localhost", "password", i, point, 200, map, n_supply_agents)
+                i += 1
+    n_shelter_agents = i
 
-    shelter_inic_c = []
-    shelter_inic = []
-    for j in range (1, 7):
-        if shelter_agents[j].location not in affected_points:
-            await shelter_agents[j].start(auto_register=True)
-            shelter_inic.append(j)
-            active_agents.append(shelter_agents[j])
-    for j in range(7, 13):
-        if shelter_agents[j].location not in affected_points:
-            await shelter_agents[j].start(auto_register=True)
-            shelter_inic_c.append(j)
-            active_agents.append(shelter_agents[j])
-
-    n_shelter += len(shelter_inic) + len(shelter_inic_c)
+    for j in range (1, i):
+        await shelter_agents[j].start(auto_register=True)
+        active_agents.append(shelter_agents[j])
+        n_shelter += 1
 
     responder_points = map.get_responder_points()
     i = 1
@@ -126,28 +120,19 @@ async def main():
             for j in range (4):
                 responder_agents[i] = ResponderAgent(f"responder{i}@localhost", "password", i, point, map)
                 i += 1
+    n_responder_agents = i
 
-    responder_inic_c = []
-    responder_inic = []
-
-    for j in range (11, 21):
-        if responder_agents[j].current_location not in affected_points:
-            await responder_agents[j].start(auto_register=True)
-            responder_inic.append(j)
-            active_agents.append(responder_agents[j])
-    for j in range(1, 11):
-        if responder_agents[j].current_location not in affected_points:
-            await responder_agents[j].start(auto_register=True)
-            responder_inic_c.append(j)
-            active_agents.append(responder_agents[j])
+    for j in range (1, i):
+        await responder_agents[j].start(auto_register=True)
+        active_agents.append(responder_agents[j])
 
     k = 0
-    for i in range(20):
+    for m in range(20):
         for j in range(20):
-            if [i, j] in affected_points:
-                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], True, False, responder_inic_c, shelter_inic_c)
+            if [m, j] in affected_points:
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [m, j], True, False, n_responder_agents, n_shelter_agents)
                 k += 1
-                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [i, j], False, True, responder_inic_c, shelter_inic_c)
+                civil_agents[k] = Civil(f"civil{k}@localhost", "password", map, [m, j], False, True, n_responder_agents, n_shelter_agents)
                 k += 1
 
     for civil_agent in civil_agents.values():
