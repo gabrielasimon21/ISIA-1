@@ -146,38 +146,44 @@ class ResponderRun(CyclicBehaviour):
                     pass
         propose_messages = []
         for i in range(19):
-            msg = await self.receive(timeout=1)
-            if msg and msg.get_metadata("performative") == "propose":
-                propose_messages.append(msg)
+            try:
+                msg = await self.receive(timeout=1)
+                if msg and msg.get_metadata("performative") == "propose":
+                    propose_messages.append(msg)
+            except Exception:
+                pass
         await self.respond_proposals(sender, propose_messages, position, information)
 
 
     async def run(self):
         async with self.lock:
-            msg = await self.receive(timeout=1)
-            if msg:
-                sender = str(msg.sender)
-                position = msg.get_metadata("value")
-                if msg.get_metadata("performative") == "inform":
-                    print(msg.body)
-                    information = msg.get_metadata("value2")
-                    await self.contract_net(sender, position, information)
-                elif msg.get_metadata("performative") == "request":
-                    position = ast.literal_eval(position)
-                    await self.send_proposal_message(sender, position)
-                elif msg.get_metadata("performative") == "confirm":
-                    print(msg.body)
-                    information = msg.get_metadata("value2")
-                    self.position = ast.literal_eval(position)
-                    self.information = ast.literal_eval(information)
-                    time = self.get_distance(self.position) * 0.05  # 20 km/h
-                    delay = random.randint(0, 3) * 0.05 #Estrada cortada
-                    await asyncio.sleep(time + delay)
-                    self.agent.current_location = self.position
-                    time = self.get_rescue_time(self.information)
-                    await asyncio.sleep(time)
-                    self.map.dados[6] += self.information[0]
-                    self.map.dados[7] += self.information[1]
+            try:
+                msg = await self.receive(timeout=1)
+                if msg:
+                    sender = str(msg.sender)
+                    position = msg.get_metadata("value")
+                    if msg.get_metadata("performative") == "inform":
+                        print(msg.body)
+                        information = msg.get_metadata("value2")
+                        await self.contract_net(sender, position, information)
+                    elif msg.get_metadata("performative") == "request":
+                        position = ast.literal_eval(position)
+                        await self.send_proposal_message(sender, position)
+                    elif msg.get_metadata("performative") == "confirm":
+                        print(msg.body)
+                        information = msg.get_metadata("value2")
+                        self.position = ast.literal_eval(position)
+                        self.information = ast.literal_eval(information)
+                        time = self.get_distance(self.position) * 0.05  # 20 km/h
+                        delay = random.randint(0, 3) * 0.05 #Estrada cortada
+                        await asyncio.sleep(time + delay)
+                        self.agent.current_location = self.position
+                        time = self.get_rescue_time(self.information)
+                        await asyncio.sleep(time)
+                        self.map.dados[6] += self.information[0]
+                        self.map.dados[7] += self.information[1]
+            except Exception:
+                pass
 
 
 

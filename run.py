@@ -38,31 +38,29 @@ def legendas (map, root, dados_atua, rec_uti):
         label_valor.grid(row=i, column=1, padx=10, pady=5, sticky="w")
 
 async def stop_running(map, n_shelter):
-    dados = []
-    dados.append(map.dados[6])
-    dados.append(map.dados[7])
-    dados.append(map.dados[8])
-    rec_ut = {"food": n_shelter*100, "water": n_shelter*100, "medical_supplies": n_shelter*50}
-    resources = ["food", "water", "medical_supplies"]
-    for agent in shelter_agents.values():
+    print ("Fim do programa")
+    try:
+        dados = []
+        dados.append(map.dados[6])
+        dados.append(map.dados[7])
+        dados.append(map.dados[8])
+        rec_ut = {"food": n_shelter*100, "water": n_shelter*100, "medical_supplies": n_shelter*50}
+        resources = ["food", "water", "medical_supplies"]
+        for agent in shelter_agents.values():
+            i = 0
+            for value in agent.supply_status.values():
+                rec_ut[resources[i]] -= value
+                i += 1
         i = 0
-        for value in agent.supply_status.values():
-            rec_ut[resources[i]] -= value
+        for value in map.rec_ent.values():
+            rec_ut[resources[i]] += value
             i += 1
-    i = 0
-    for value in map.rec_ent.values():
-        rec_ut[resources[i]] += value
-        i += 1
-    update_gui(36, map, dados, rec_ut)
-    for agent in civil_agents.values():
-        await agent.stop()
-    for agent in responder_agents.values():
-        await agent.stop()
-    for agent in shelter_agents.values():
-        await agent.stop()
-    for agent in supply_agents.values():
-        await agent.stop()
-    sys.exit(0)
+        update_gui(36, map, dados, rec_ut)
+        for agent in active_agents:
+            await agent.stop()
+        sys.exit(0)
+    except Exception as e:
+        print(f"ERRO: {e}")
 
 
 civil_agents = {}
@@ -71,6 +69,7 @@ supply_agents = {}
 shelter_agents = {}
 n_shelter = 0
 map = Map()
+active_agents = []
 
 async def main():
     global n_shelter, map
@@ -89,6 +88,7 @@ async def main():
         if supply_agents[j].current_location not in affected_points:
             await supply_agents[j].start(auto_register=True)
             supply_inic.append(j)
+            active_agents.append(supply_agents[j])
 
     shelter_points = map.get_shelter_points()
     i = 1
@@ -103,10 +103,12 @@ async def main():
         if shelter_agents[j].location not in affected_points:
             await shelter_agents[j].start(auto_register=True)
             shelter_inic.append(j)
+            active_agents.append(shelter_agents[j])
     for j in range(7, 13):
         if shelter_agents[j].location not in affected_points:
             await shelter_agents[j].start(auto_register=True)
             shelter_inic_c.append(j)
+            active_agents.append(shelter_agents[j])
 
     n_shelter += len(shelter_inic) + len(shelter_inic_c)
 
@@ -132,10 +134,12 @@ async def main():
         if responder_agents[j].current_location not in affected_points:
             await responder_agents[j].start(auto_register=True)
             responder_inic.append(j)
+            active_agents.append(responder_agents[j])
     for j in range(1, 11):
         if responder_agents[j].current_location not in affected_points:
             await responder_agents[j].start(auto_register=True)
             responder_inic_c.append(j)
+            active_agents.append(responder_agents[j])
 
     k = 0
     for i in range(20):
@@ -148,10 +152,11 @@ async def main():
 
     for civil_agent in civil_agents.values():
         await civil_agent.start(auto_register=True)
+        active_agents.append(civil_agent)
 
 async def run_with_timeout():
     try:
-        await asyncio.wait_for(main(), timeout=75)
+        await asyncio.wait_for(main(), timeout=120)
     except asyncio.TimeoutError:
         await stop_running(map, n_shelter)
 

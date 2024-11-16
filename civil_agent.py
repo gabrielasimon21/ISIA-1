@@ -10,10 +10,10 @@ class Civil(Agent):
         super().__init__(jid, password)
         self.environment = environment
         self.position = position
-        self.leader = leader
-        self.leader2 = leader2
-        self.resg1 = False
-        self.resg2 = False
+        self.leader = leader # Representante dos mortos e feridos
+        self.leader2 = leader2 # Representante das essoas deslojadas
+        self.resg1 = False # Já resgataram os mortos e feridos
+        self.resg2 = False # Já abrigaram os civis desalojados
         self.resp_c = resp_c
         self.shelt_c = shelt_c
 

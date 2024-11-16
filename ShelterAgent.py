@@ -156,12 +156,15 @@ class ShelterRun(CyclicBehaviour):
             except Exception:
                 pass
         propose_messages = []
-        for i in range(19):
-            msg = await self.receive(timeout=1)
-            if msg:
-                dest = str(msg.sender)
-            if msg and msg.get_metadata("performative") == "propose" and not dest.startswith("shelter"):
-                propose_messages.append(msg)
+        for i in range(len(self.agent.supply_i)-1):
+            try:
+                msg = await self.receive(timeout=1)
+                if msg:
+                    dest = str(msg.sender)
+                if msg and msg.get_metadata("performative") == "propose" and not dest.startswith("shelter"):
+                    propose_messages.append(msg)
+            except Exception:
+                pass
         await self.respond_proposals_supply(propose_messages)
 
     async def respond_proposals_supply(self, propose_messages):
@@ -255,7 +258,7 @@ class ShelterRun(CyclicBehaviour):
                 self.agent.supply_status[resource] = 0
 
     async def contract_net(self, position, information, civil, sender):
-        for i in range(20):
+        for i in range(12):
             if i != self.agent.number:
                 agent = f"shelter{i}@localhost"
                 msg = Message(to=agent)
@@ -270,44 +273,50 @@ class ShelterRun(CyclicBehaviour):
                 except Exception:
                     pass
         shelter_propose_messages = []
-        for i in range(19):
-            msg = await self.receive(timeout=1)
-            if msg:
-                dest = str(msg.sender)
-            if msg and msg.get_metadata("performative") == "propose" and not dest.startswith("supply"):
-                shelter_propose_messages.append(msg)
+        for i in range(11):
+            try:
+                msg = await self.receive(timeout=1)
+                if msg:
+                    dest = str(msg.sender)
+                if msg and msg.get_metadata("performative") == "propose" and not dest.startswith("supply"):
+                    shelter_propose_messages.append(msg)
+            except Exception:
+                pass
         await self.respond_proposals(civil, sender, shelter_propose_messages, position, information)
 
     async def run(self):
         async with self.lock:
-            msg = await self.receive(timeout=1)
-            if msg:
-                sender = str(msg.sender)
-                position = msg.get_metadata("value")
-                if msg.get_metadata("performative") == "inform":
-                    print(msg.body)
-                    information = msg.get_metadata("value2")
-                    #CONTRACT NET
-                    await self.contract_net(position, information, True, sender)
-                elif msg.get_metadata("performative") == "request":
-                    information = msg.get_metadata("value2")
-                    information = int(information)
-                    self.position = ast.literal_eval(position)
-                    self.information = information
-                    await self.send_proposal_message(self.position, self.information, sender)
-                elif msg.get_metadata("performative") == "confirm":
-                    print(msg.body)
-                    information = msg.get_metadata("value2")
-                    information = int(information)
-                    self.position = ast.literal_eval(position)
-                    self.information = information
-                    time = self.get_distance(self.position) * 0.05  # 20 km/h
-                    delay = random.randint(0, 3) * 0.05  # Estrada cortada
-                    await asyncio.sleep(time + delay)
-                    self.agent.current_location = self.position
-                    time = self.get_rescue_time(self.information)
-                    await asyncio.sleep(time)
-                    self.agent.current_occupancy += information
-                    self.map.dados[8] += self.information
+            try:
+                msg = await self.receive(timeout=1)
+                if msg:
+                    sender = str(msg.sender)
+                    position = msg.get_metadata("value")
+                    if msg.get_metadata("performative") == "inform":
+                        print(msg.body)
+                        information = msg.get_metadata("value2")
+                        #CONTRACT NET
+                        await self.contract_net(position, information, True, sender)
+                    elif msg.get_metadata("performative") == "request":
+                        information = msg.get_metadata("value2")
+                        information = int(information)
+                        self.position = ast.literal_eval(position)
+                        self.information = information
+                        await self.send_proposal_message(self.position, self.information, sender)
+                    elif msg.get_metadata("performative") == "confirm":
+                        print(msg.body)
+                        information = msg.get_metadata("value2")
+                        information = int(information)
+                        self.position = ast.literal_eval(position)
+                        self.information = information
+                        time = self.get_distance(self.position) * 0.05  # 20 km/h
+                        delay = random.randint(0, 3) * 0.05  # Estrada cortada
+                        await asyncio.sleep(time + delay)
+                        self.agent.current_location = self.position
+                        time = self.get_rescue_time(self.information)
+                        await asyncio.sleep(time)
+                        self.agent.current_occupancy += information
+                        self.map.dados[8] += self.information
+            except Exception:
+                pass
         self.spend_resources()
         await self.check_resources()
