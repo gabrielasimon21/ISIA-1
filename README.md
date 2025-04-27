@@ -5,5 +5,5 @@ The main goal of the project is to:
 2. Create a descentralized and efficient system to respond to the different requests of the people affected by the catastrophe
 
 This project was developed by:
-**Francisco Macieira**
-**Nuno Gomes**
+- **Francisco Macieira**
+- **Gabriela Simons**
